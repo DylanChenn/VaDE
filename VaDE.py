@@ -19,13 +19,13 @@ fullmodel = r'.\trained_model\fullmodel'
 
 def weight_init(size):
     in_dim = size[0]
-    limit = tf.sqrt(2/in_dim)
+    limit = tf.sqrt(1/in_dim)
     return tf.random_uniform(shape=size, minval=-limit, maxval=limit)
 
 
 def bias_init(size):
     in_dim = size[0]
-    limit = tf.sqrt(2/in_dim)
+    limit = tf.sqrt(1/in_dim)
     return tf.random_uniform(shape=[size[1]], minval=-limit, maxval=limit)
 
 
@@ -199,7 +199,7 @@ class VaDE:
         digit_size = 28
         figure = np.zeros((digit_size * self.n_centroid, digit_size * n))
         g_u = sess.run(self.gmm_variable[0])
-        g_cov = np.exp(sess.run(self.gmm_variable[1]))
+        g_cov = sess.run(self.gmm_variable[1])
         g_weight = sess.run(self.gmm_variable[2])
         for i in range(self.n_centroid):
             u = g_u[i]
@@ -208,7 +208,6 @@ class VaDE:
             while count < n:
                 z_generate_i = np.random.multivariate_normal(u, np.diag(cov), (1,))
                 posterior = self.get_posterior(z_generate_i, g_u, g_cov, g_weight)[i]
-                print("Class{:}, This sample prob:{:.2f}, Good Count:{:}".format(i, posterior, count))
                 if posterior > 0.999:
                     x_generate_i = sess.run(self.x_generate, feed_dict={self.z: z_generate_i})
                     figure[i * digit_size:(i + 1) * digit_size, count * digit_size:(count + 1) * digit_size] = \
@@ -273,18 +272,6 @@ class VaDE:
                 saver.restore(sess, pretrainmodel)
                 print("After load pretrain model: ")
                 print(sess.run(loss, feed_dict={self.x: self.testset}))
-                op = tf.assign(self.encodew[-1], self.encodew[-2])
-                sess.run(op)
-                op = tf.assign(self.encodeb[-1], self.encodeb[-2])
-                sess.run(op)
-                temp_z, temp_loss = sess.run([self.z_mu, loss], feed_dict={self.x: self.trainset})
-                pre = self.gmm.fit_predict(temp_z)
-                acc_init = cluster_acc(pre, self.trainy)[0]
-                print("Pretraining acc_gmm: {0}, TrainSet Loss:{1}".format(acc_init, temp_loss))
-                op1 = tf.assign(self.gmm_variable[0], self.gmm.means_)
-                op2 = tf.assign(self.gmm_variable[1], self.gmm.covariances_)
-                op3 = tf.assign(self.gmm_variable[2], self.gmm.weights_)
-                sess.run([op1, op2, op3])
             else:
                 total_count = self.trainset.shape[0]
                 batch_size = self.batch_size
@@ -298,21 +285,19 @@ class VaDE:
                         epoch + 1, temp_loss))
                 print("After load pretrain model: ")
                 print(sess.run(loss, feed_dict={self.x: self.testset}))
-                op = tf.assign(self.encodew[-1], self.encodew[-2])
-                sess.run(op)
-                op = tf.assign(self.encodeb[-1], self.encodeb[-2])
-                sess.run(op)
-                temp_z, temp_loss = sess.run([self.z_mu, loss], feed_dict={self.x: self.trainset})
-                pre = self.gmm.fit_predict(temp_z)
-                acc_init = cluster_acc(pre, self.trainy)[0]
-                print("Pretraining acc_gmm: {0}, TrainSet Loss:{1}".format(acc_init, temp_loss))
-                op1 = tf.assign(self.gmm_variable[0], self.gmm.means_)
-                op2 = tf.assign(self.gmm_variable[1], self.gmm.covariances_)
-                op3 = tf.assign(self.gmm_variable[2], self.gmm.weights_)
-                sess.run([op1, op2, op3])
-                if acc_init < 0.7:
-                    return
                 saver.save(sess, pretrainmodel)
+            op = tf.assign(self.encodew[-1], self.encodew[-2])
+            sess.run(op)
+            op = tf.assign(self.encodeb[-1], self.encodeb[-2])
+            sess.run(op)
+            temp_z, temp_loss = sess.run([self.z_mu, loss], feed_dict={self.x: self.trainset})
+            pre = self.gmm.fit_predict(temp_z)
+            acc_init = cluster_acc(pre, self.trainy)[0]
+            print("Pretraining acc_gmm: {0}, TrainSet Loss:{1}".format(acc_init, temp_loss))
+            op1 = tf.assign(self.gmm_variable[0], self.gmm.means_)
+            op2 = tf.assign(self.gmm_variable[1], self.gmm.covariances_)
+            op3 = tf.assign(self.gmm_variable[2], self.gmm.weights_)
+            sess.run([op1, op2, op3])
 
         total_count = self.trainset.shape[0]
         batch_size = self.batch_size
@@ -332,10 +317,7 @@ class VaDE:
             acc = cluster_acc(temp_c, self.trainy)[0]
             print("Training Epoch {0}\tacc_pcz:{1}\ttrainloss:{2}\tLR:{3}".format(
                 epoch + 1, acc, trainloss, sess.run(self.lr)))
-            if epoch >= 30 and acc < 0.80:
-                shutil.rmtree(r".\pretrain")
-                return
-        saver.save(sess, fullmodel)
+
         x_test_sub = np.reshape(self.testset[0:15 * 15], newshape=(15, 15, 28, 28))
         x_test_vae = np.reshape(
             sess.run(self.x_decoded_prob, feed_dict={self.x: self.testset[0:15 * 15]}), newshape=(15, 15, 28, 28))
@@ -359,5 +341,3 @@ class VaDE:
         self.test_generateplot(sess, epoch + 1, acc, acc_init)
 
         shutil.move(r".\pretrain", r".\Output\Acc_init{:.2f}_Acc{:.2f}%\pretrain".format(acc_init*100, acc*100))
-        shutil.move(r".\trained_model", r".\Output\Acc_init{:.2f}_Acc{:.2f}%\trained_model".format(
-            acc_init * 100, acc * 100))
