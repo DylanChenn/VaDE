@@ -199,7 +199,7 @@ class VaDE:
         digit_size = 28
         figure = np.zeros((digit_size * self.n_centroid, digit_size * n))
         g_u = sess.run(self.gmm_variable[0])
-        g_cov = sess.run(self.gmm_variable[1])
+        g_cov = np.exp(sess.run(self.gmm_variable[1]))
         g_weight = sess.run(self.gmm_variable[2])
         for i in range(self.n_centroid):
             u = g_u[i]
@@ -251,7 +251,7 @@ class VaDE:
         vae_reconstruction_loss = tf.losses.mean_squared_error(predictions=x_decoded_prob, labels=self.x)
         loss = tf.reduce_mean(vae_reconstruction_loss)
 
-        solver = tf.train.AdamOptimizer(0.0005).minimize(loss)
+        solver = tf.train.AdamOptimizer(0.0008).minimize(loss)
         solver_nn = tf.train.AdamOptimizer(self.lr).minimize(
             self.vadeloss, global_step=self.global_step,
             var_list=self.encodew+self.encodeb+self.decodew+self.decodeb
@@ -317,7 +317,10 @@ class VaDE:
             acc = cluster_acc(temp_c, self.trainy)[0]
             print("Training Epoch {0}\tacc_pcz:{1}\ttrainloss:{2}\tLR:{3}".format(
                 epoch + 1, acc, trainloss, sess.run(self.lr)))
-
+            if epoch == 20 and acc < 0.8:  # bad initialization, restart
+                shutil.rmtree(r'.\pretrain')
+                return
+        saver.save(sess, fullmodel)
         x_test_sub = np.reshape(self.testset[0:15 * 15], newshape=(15, 15, 28, 28))
         x_test_vae = np.reshape(
             sess.run(self.x_decoded_prob, feed_dict={self.x: self.testset[0:15 * 15]}), newshape=(15, 15, 28, 28))
@@ -341,3 +344,4 @@ class VaDE:
         self.test_generateplot(sess, epoch + 1, acc, acc_init)
 
         shutil.move(r".\pretrain", r".\Output\Acc_init{:.2f}_Acc{:.2f}%\pretrain".format(acc_init*100, acc*100))
+        shutil.move(r".\trained_model", r".\Output\Acc_init{:.2f}_Acc{:.2f}%\trained_model".format(acc_init*100, acc*100))
