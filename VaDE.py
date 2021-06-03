@@ -251,7 +251,7 @@ class VaDE:
         vae_reconstruction_loss = tf.losses.mean_squared_error(predictions=x_decoded_prob, labels=self.x)
         loss = tf.reduce_mean(vae_reconstruction_loss)
 
-        solver = tf.train.AdamOptimizer(0.0008).minimize(loss)
+        solver = tf.train.AdamOptimizer(0.0005).minimize(loss)
         solver_nn = tf.train.AdamOptimizer(self.lr).minimize(
             self.vadeloss, global_step=self.global_step,
             var_list=self.encodew+self.encodeb+self.decodew+self.decodeb
